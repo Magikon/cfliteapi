@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	cffc "main/cloudflare-lite-api/cffunc"
+	cffc "./cffunc"
 	"strings"
 	"time"
 )
