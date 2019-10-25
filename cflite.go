@@ -1,42 +1,26 @@
 package main
 
 import (
-	cffc "cfmain/cffunc"
-	cfst "cfmain/cfstructs"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
-	"os"
+	cffc "main/cloudflare-lite-api/cffunc"
+	"strings"
+	"time"
 )
 
-func writheConf(email string, key string) error {
-	var config = new(cfst.CFConf)
-	config.Name = "config"
-	config.Data.Email = email
-	config.Data.XAuthKey = key
-	confJSON, _ := json.Marshal(config)
-	err := ioutil.WriteFile("./cf.conf", confJSON, 644)
-	return err
+func writheHelp() {
+	fmt.Println("Create:       cflite -email=some@mail.com -xkey=XAuthKey -domain=example.com -name=test.example.com -type=A      -content=12.13.14.15   -proxy=true  -akt=create")
+	fmt.Println("Create:       cflite -email=some@mail.com -xkey=XAuthKey -domain=example.com -name=test.example.com -type=CNAME  -content=example.com   -proxy=true  -akt=create")
+	fmt.Println("Create MX:    cflite -email=some@mail.com -xkey=XAuthKey -domain=example.com -name=mx.example.com   -type=MX     -content=mx.server.com -proxy=10    -akt=create")
+	fmt.Println("Update:       cflite -email=some@mail.com -xkey=XAuthKey -domain=example.com -name=test.example.com -type=A      -content=12.13.14.16   -proxy=false -akt=update")
+	fmt.Println("Delete:       cflite -email=some@mail.com -xkey=XAuthKey -domain=example.com -name=test.example.com -type=A      -akt=delete")
+	fmt.Println("List:         cflite -email=some@mail.com -xkey=XAuthKey -domain=example.com -akt=list")
+	fmt.Println("Purge Cache:  cflite -email=some@mail.com -xkey=XAuthKey -domain=example.com -akt=purge")
 }
 
-func readConfig() error {
-	var conf = new(cfst.CFConf)
-	if file, err := os.Open("./cf.conf"); err == nil {
-		decoder := json.NewDecoder(file)
-		if err := decoder.Decode(&conf); err != nil {
-			return err
-		}
-		cffc.Email = conf.Data.Email
-		cffc.XAuthKey = conf.Data.XAuthKey
-	}
-	return nil
-}
-
-func init() {
-	readConfig()
-}
 func main() {
+	startTime := time.Now()
+
 	emailPtr := flag.String("email", "", "cloudflare email")
 	xkeyPtr := flag.String("xkey", "", "cloudflare xkey")
 	domainPtr := flag.String("domain", "", "Domain name")
@@ -45,42 +29,54 @@ func main() {
 	contentPtr := flag.String("content", "", "content of resource")
 	aktPtr := flag.String("akt", "", "create akt")
 	proxyPtr := flag.String("proxy", "", "proxy")
-	createConfigPtr := flag.Bool("config", false, "create config")
 	helpPtr := flag.Bool("help", false, "help")
 
 	flag.Parse()
 
-	if *createConfigPtr == true && *emailPtr != "" && *xkeyPtr != "" {
-		writheConf(*emailPtr, *xkeyPtr)
+	if *emailPtr == "" {
+		cffc.Bearer = true
 	}
-	if *emailPtr != "" && *xkeyPtr != "" {
-		cffc.Email = *emailPtr
-		cffc.XAuthKey = *xkeyPtr
-	}
-	if *helpPtr {
-		fmt.Println("Create config file:        cflite -config -email=some@mail.com -xkey=XAuthKey")
-		fmt.Println("Work without config file:  cflite -email=some@mail.com -xkey=XAuthKey -domain=example.com -name=test.example.com -type=A  -content=12.13.14.15   -proxy=true  -akt=create")
-		fmt.Println("If config file exist")
-		fmt.Println("Create:    cflite -domain=example.com -name=test.example.com -type=A  -content=12.13.14.15   -proxy=true  -akt=create")
-		fmt.Println("Create MX: cflite -domain=example.com -name=mx.example.com   -type=MX -content=mx.server.com -proxy=10    -akt=create")
-		fmt.Println("Update:    cflite -domain=example.com -name=test.example.com -type=A  -content=12.13.14.16   -proxy=false -akt=update")
-		fmt.Println("Delete:    cflite -domain=example.com -name=test.example.com -type=A  -akt=delete")
-		fmt.Println("List:      cflite -domain=example.com -akt=list")
+	cffc.Email = *emailPtr
+	cffc.XAuthKey = *xkeyPtr
 
+	if *helpPtr {
+		writheHelp()
 	}
-	switch *aktPtr {
-	case "create":
-		//cffc.CreateRecord(*domainPtr, *namePtr, *contentPtr, *restypePtr, *proxyPtr)
-		cffc.Akter(6, *domainPtr, *namePtr, *contentPtr, *restypePtr, *proxyPtr)
-	case "update":
-		//cffc.UpdateRecord(*domainPtr, *namePtr, *contentPtr, *restypePtr, *proxyPtr)
-		cffc.Akter(5, *domainPtr, *namePtr, *contentPtr, *restypePtr, *proxyPtr)
-	case "delete":
-		//cffc.DeleteRecord(*domainPtr, *namePtr, *restypePtr)
-		cffc.Akter(4, *domainPtr, *namePtr, *contentPtr, *restypePtr, *proxyPtr)
-	case "list":
-		//cffc.ListRecords(*domainPtr, *namePtr, *contentPtr, *restypePtr, *proxyPtr)
-		cffc.Akter(3, *domainPtr, *namePtr, *contentPtr, *restypePtr, *proxyPtr)
-	default:
+	var name string
+	for _, domain := range strings.Split(*domainPtr, ",") {
+		if !strings.Contains(*namePtr, domain) {
+			name = *namePtr + "." + domain
+		} else {
+			name = *namePtr
+		}
+		switch *aktPtr {
+		case "create":
+			//cffc.CreateRecord(domain, name, *contentPtr, *restypePtr, *proxyPtr)
+			cffc.Akter(6, domain, name, *contentPtr, *restypePtr, *proxyPtr)
+			//purge cache
+			fmt.Println("Purge cache for domain " + domain)
+			cffc.Akter(0, domain, name, *contentPtr, *restypePtr, *proxyPtr)
+		case "update":
+			//cffc.UpdateRecord(domain, name, *contentPtr, *restypePtr, *proxyPtr)
+			cffc.Akter(5, domain, name, *contentPtr, *restypePtr, *proxyPtr)
+			//purge cache
+			fmt.Println("Purge cache for domain " + domain)
+			cffc.Akter(0, domain, name, *contentPtr, *restypePtr, *proxyPtr)
+		case "delete":
+			//cffc.DeleteRecord(domain, name, *restypePtr)
+			cffc.Akter(4, domain, name, *contentPtr, *restypePtr, *proxyPtr)
+			//purge cache
+			fmt.Println("Purge cache for domain " + domain)
+			cffc.Akter(0, domain, name, *contentPtr, *restypePtr, *proxyPtr)
+		case "list":
+			//cffc.ListRecords(domain, name, *contentPtr, *restypePtr, *proxyPtr)
+			cffc.Akter(3, domain, name, *contentPtr, *restypePtr, *proxyPtr)
+		case "purge":
+			//purge cache
+			fmt.Println("Purge cache for domain " + domain)
+			cffc.Akter(0, domain, name, *contentPtr, *restypePtr, *proxyPtr)
+		default:
+		}
 	}
+	fmt.Println("Working time is: ", time.Since(startTime))
 }

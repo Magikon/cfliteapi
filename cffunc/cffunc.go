@@ -2,14 +2,15 @@ package cffunc
 
 import (
 	"bytes"
-	cfst "cfmain/cfstructs"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
+	cfst "main/cloudflare-lite-api/cfstructs"
 	"net/http"
 	"strings"
+	"time"
 )
 
 var zoneID string
@@ -20,6 +21,9 @@ var Email string
 
 //XAuthKey authority key for cludflare
 var XAuthKey string
+
+//Bearer key
+var Bearer = false
 
 //return structured body
 func getResult(body []byte) *cfst.AllInfo {
@@ -51,16 +55,25 @@ func Akter(akt int, domainname string, name string, content string, resourcetype
 		if resourcetype == "MX" {
 			data = strings.NewReader("{\"type\":\"" + resourcetype + "\",\"name\":\"" + name + "\",\"content\":\"" + content + "\",\"priority\":" + proxyMXPriority + "}")
 		} else {
-			data = strings.NewReader("{\"type\":\"" + resourcetype + "\",\"name\":\"" + name + "\",\"content\":\"" + content + "\",\"proxied\":" + proxyMXPriority + "}")
+			if resourcetype == "CNAME" && content == "@" {
+				data = strings.NewReader("{\"type\":\"" + resourcetype + "\",\"name\":\"" + name + "\",\"content\":\"" + domainname + "\",\"proxied\":" + proxyMXPriority + "}")
+			} else {
+				data = strings.NewReader("{\"type\":\"" + resourcetype + "\",\"name\":\"" + name + "\",\"content\":\"" + content + "\",\"proxied\":" + proxyMXPriority + "}")
+			}
 		}
 	}
-	if akt > 2 {
+	if akt > 2 || akt == 0 {
 		Akter(1, domainname, name, content, resourcetype, proxyMXPriority)
 	}
 	if akt == 4 || akt == 5 {
 		Akter(2, domainname, name, content, resourcetype, proxyMXPriority)
 	}
 	switch akt {
+	case 0:
+		time.Sleep(200 * time.Millisecond)
+		url += "/" + zoneID + "/purge_cache"
+		data = strings.NewReader("{\"purge_everything\":true}")
+		req, err = http.NewRequest("POST", url, data)
 	case 1: //getZoneID
 		url += "?name=" + domainname
 		req, err = http.NewRequest("GET", url, nil)
@@ -83,8 +96,12 @@ func Akter(akt int, domainname string, name string, content string, resourcetype
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	req.Header.Add("X-Auth-Email", Email)
-	req.Header.Add("X-Auth-Key", XAuthKey)
+	if Bearer == true {
+		req.Header.Add("Authorization", "Bearer " + XAuthKey)
+	} else {
+		req.Header.Add("X-Auth-Email", Email)
+		req.Header.Add("X-Auth-Key", XAuthKey)
+	}
 	req.Header.Add("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -127,12 +144,7 @@ func Akter(akt int, domainname string, name string, content string, resourcetype
 				}
 			}
 		}
-	case 4: //deleteRecord
-		printMyJSON(body)
-	case 5: //updateRecord
-		printMyJSON(body)
-	case 6: //createRecord
+	case 0, 4, 5, 6: //delete update create record
 		printMyJSON(body)
 	}
 }
-
