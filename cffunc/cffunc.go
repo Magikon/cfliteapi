@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	cfst "./cfstructs"
+	cfst "../cfstructs"
 	"net/http"
 	"strings"
 	"time"
