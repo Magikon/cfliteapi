@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	cfst "main/cloudflare-lite-api/cfstructs"
+	cfst "./cfstructs"
 	"net/http"
 	"strings"
 	"time"
